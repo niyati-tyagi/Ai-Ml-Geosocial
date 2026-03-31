@@ -1,0 +1,66 @@
+{
+  "entities": {
+    "Activity": {
+      "title": "Activity",
+      "description": "A user-generated event or activity on the map.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "time": { "type": "string" },
+        "attendees": { "type": "number" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "icon": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "userName": { "type": "string" },
+        "description": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "category", "lat", "lng", "authorUid"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A message sent in an activity's group chat.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string" },
+        "sender": { "type": "string" },
+        "senderUid": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "activityId": { "type": "string" }
+      },
+      "required": ["text", "senderUid", "activityId"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "joinedActivities": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["uid", "email"]
+    }
+  },
+  "firestore": {
+    "/activities/{activityId}": {
+      "schema": "Activity",
+      "description": "Global list of activities."
+    },
+    "/activities/{activityId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Messages within a specific activity chat."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Private user profile data."
+    }
+  }
+}
