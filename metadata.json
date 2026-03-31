@@ -1,0 +1,5 @@
+{
+  "name": "GeoSocial",
+  "description": "A geo-social networking application for discovery and local activities.",
+  "requestFramePermissions": ["geolocation"]
+}
