@@ -1,0 +1,63 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+:root {
+  --bg-dark: #0a0a0a;
+  --card-dark: #1a1a1a;
+  --accent: #3b82f6;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: white;
+  overflow: hidden;
+}
+
+/* Leaflet Dark Mode Filter */
+.leaflet-container {
+  background: #111 !important;
+}
+
+.leaflet-tile {
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background: var(--card-dark) !important;
+  color: white !important;
+  border-radius: 12px !important;
+}
+
+.leaflet-popup-content {
+  margin: 12px !important;
+}
+
+.leaflet-control-zoom {
+  border: none !important;
+  margin-top: 80px !important;
+}
+
+.leaflet-control-zoom-in, .leaflet-control-zoom-out {
+  background: var(--card-dark) !important;
+  color: white !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
