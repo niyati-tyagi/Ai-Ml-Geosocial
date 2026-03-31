@@ -1,0 +1,162 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: activities
+    // Document ID: auto-generated
+    // Fields:
+    //   - title: string (required, 1-100 chars)
+    //   - category: string (required, from allowed list)
+    //   - time: string (required)
+    //   - attendees: number (required, non-negative)
+    //   - lat: number (required, -90 to 90)
+    //   - lng: number (required, -180 to 180)
+    //   - icon: string (required)
+    //   - userAvatar: string (required)
+    //   - userName: string (required)
+    //   - description: string (optional, < 1000 chars)
+    //   - authorUid: string (required, immutable)
+    //   - createdAt: timestamp (required, immutable)
+    //
+    // Collection: activities/{activityId}/messages
+    // Document ID: auto-generated
+    // Fields:
+    //   - text: string (required, 1-500 chars)
+    //   - sender: string (required)
+    //   - senderUid: string (required, immutable)
+    //   - timestamp: timestamp (required, immutable)
+    //   - activityId: string (required, immutable)
+    //
+    // Collection: users
+    // Document ID: userId (matches auth.uid)
+    // Fields:
+    //   - uid: string (required, matches auth.uid)
+    //   - displayName: string (optional)
+    //   - email: string (required, PII)
+    //   - photoURL: string (optional)
+    //   - joinedActivities: list (optional, max 100 items)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+          (request.auth.token.email == "sharmaarnav5662@gmail.com" && request.auth.token.email_verified == true)
+        );
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.authorUid;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidActivity(data) {
+      let categories = ["All", "Popular", "Travel", "Outdoor & Active", "Nightlife", "Food & Drinks"];
+      return hasRequiredFields(['title', 'category', 'time', 'attendees', 'lat', 'lng', 'icon', 'userAvatar', 'userName', 'authorUid', 'createdAt']) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+             data.category in categories &&
+             data.attendees is number && data.attendees >= 0 &&
+             data.lat is number && data.lat >= -90 && data.lat <= 90 &&
+             data.lng is number && data.lng >= -180 && data.lng <= 180 &&
+             data.userAvatar is string && isValidUrl(data.userAvatar) &&
+             data.userName is string && data.userName.size() > 0 &&
+             data.authorUid == request.auth.uid &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidMessage(data, activityId) {
+      return hasRequiredFields(['text', 'sender', 'senderUid', 'timestamp', 'activityId']) &&
+             data.text is string && data.text.size() >= 1 && data.text.size() <= 500 &&
+             data.senderUid == request.auth.uid &&
+             data.activityId == activityId &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             (!('photoURL' in data) || isValidUrl(data.photoURL)) &&
+             (!('joinedActivities' in data) || (data.joinedActivities is list && data.joinedActivities.size() <= 100)) &&
+             (!('role' in data) || (data.role in ['admin', 'user']));
+    }
+
+    // ===============================================================
+    // Match Rules
+    // ===============================================================
+
+    // Activities
+    match /activities/{activityId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (isValidActivity(request.resource.data) || isAdmin());
+      allow update: if isAuthenticated() && 
+                    (
+                      isAdmin() ||
+                      // Owner can update everything except immutable fields
+                      (isDocOwner() && isValidActivity(request.resource.data) && 
+                       request.resource.data.authorUid == resource.data.authorUid &&
+                       request.resource.data.createdAt == resource.data.createdAt) ||
+                      // Others can only increment/decrement attendees
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attendees']) &&
+                       request.resource.data.attendees is number &&
+                       math.abs(request.resource.data.attendees - resource.data.attendees) == 1)
+                    );
+      allow delete: if isDocOwner() || isAdmin();
+
+      // Messages (Subcollection)
+      match /messages/{messageId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && isValidMessage(request.resource.data, activityId);
+        allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.senderUid;
+      }
+    }
+
+    // Users (Private Profile)
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    (request.resource.data.role == 'user' || isAdmin());
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) &&
+                    request.resource.data.uid == resource.data.uid &&
+                    (request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+  }
+}
